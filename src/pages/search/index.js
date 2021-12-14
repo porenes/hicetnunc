@@ -381,7 +381,7 @@ async function fetchDay(day, offset) {
 async function fetchSales(offset) {
   const { errors, data } = await fetchGraphQL(`
   query sales {
-    hic_et_nunc_trade(order_by: {timestamp: desc}, limit : 15, offset : ${offset}, where: {swap: {price: {_gte: "10000"}}}) {
+    hic_et_nunc_trade(order_by: {timestamp: desc}, limit : 15, offset : ${offset}, where: {swap: {price: {_gte: "500000"}}}) {
       timestamp
       swap {
         price
@@ -580,6 +580,7 @@ export class Search extends Component {
       let list = await fetchDay(new Date((new Date()).getTime() - 60 * 60 * 24 * 1000).toISOString(), this.state.offset)
       list = list.map(e => e.token)
       list = [...this.state.feed, ...(list)]
+      list = list.filter(e => !arr.includes(e.creator.address))
       list = _.uniqBy(list, 'id')
 
       this.setState({
@@ -591,6 +592,8 @@ export class Search extends Component {
       let list = await fetchDay(new Date((new Date()).getTime() - 60 * 60 * 24 * 7 * 1000).toISOString(), this.state.offset)
       list = list.map(e => e.token)
       list = [...this.state.feed, ...(list)]
+      list = list.filter(e => !arr.includes(e.creator.address))
+
       list = _.uniqBy(list, 'id')
 
       this.setState({
@@ -603,6 +606,8 @@ export class Search extends Component {
       let list = await fetchDay(new Date((new Date()).getTime() - 60 * 60 * 24 * 30 * 1000).toISOString(), this.state.offset)
       list = list.map(e => e.token)
       list = [...this.state.feed, ...(list)]
+      list = list.filter(e => !arr.includes(e.creator.address))
+
       list = _.uniqBy(list, 'id')
 
       this.setState({
@@ -751,8 +756,8 @@ export class Search extends Component {
                   type="text"
                   name="search"
                   onChange={this.handleChange}
-                  label="search for objkt id, artists, tags ↵"
-                  placeholder="search for objkt id, artists, tags ↵"
+                  label="search ↵"
+                  placeholder="search ↵"
                   onKeyPress={this.handleKey}
                 />
             {

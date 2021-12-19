@@ -36,7 +36,9 @@ export const Header = () => {
   if (context.acc?.address) {
     // is menu closed?
     if (context.collapsed) {
-      const proxyAddress = context.proxyAddress ? ' (' + context.proxyAddress + ')' : ''
+      const proxyAddress = context.proxyAddress
+        ? ' (' + context.proxyAddress + ')'
+        : ''
       button = walletPreview(context.acc.address) + proxyAddress
     } else {
       // menu is open
@@ -65,7 +67,7 @@ export const Header = () => {
     <>
       <header className={styles.container}>
         <div className={styles.content}>
-          <a href='/'>
+          <a href="/">
             <div className={styles.logo}>
               {/* HIC LOGO */}
               {true && (
@@ -94,9 +96,9 @@ export const Header = () => {
           </a>
 
           <div className={styles.right}>
-            <Button onClick={handleSyncUnsync} secondary>
+            {/* <Button onClick={handleSyncUnsync} secondary>
               <Primary>{button}</Primary>
-            </Button>
+            </Button> */}
 
             <Button onClick={context.toogleNavbar} secondary>
               <VisuallyHidden>
@@ -125,14 +127,14 @@ export const Header = () => {
                         <Primary>galleries</Primary>
                       </Button>
                     </li>
-                    <li>
+                    {/* <li>
                       <Button onClick={() => handleRoute('/mint')}>
                         <Primary>
                           OBJKT<span style={{ fontSize: '16px' }}> (mint)</span>
                         </Primary>
                       </Button>
-                    </li>
-{/*                     <li>
+                    </li> */}
+                    {/*                     <li>
                       <Button onClick={() => handleRoute('/collaborate')}>
                         <Primary>collaborate</Primary>
                       </Button>
@@ -142,7 +144,7 @@ export const Header = () => {
                         <Primary>manage assets</Primary>
                       </Button>
                     </li>
-                    { context.acc?.address ?
+                    {/* { context.acc?.address ?
                       <li>
                         <Button onClick={() => handleRoute('/config')}>
                           <Primary>edit profile</Primary>
@@ -150,7 +152,7 @@ export const Header = () => {
                       </li>
                       :
                       null
-                    }
+                    } */}
                     <li>
                       <Button onClick={() => handleRoute('/about')}>
                         <Primary>about</Primary>

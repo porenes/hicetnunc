@@ -14,6 +14,11 @@ import { Tags } from './pages/tags'
 
 export const routes = [
   {
+    exact: false,
+    path: '/tz/:id/:collection?',
+    component: Display,
+  },
+  {
     exact: true,
     path: '/',
     component: Search,
@@ -32,11 +37,6 @@ export const routes = [
     exact: false,
     path: '/latest',
     component: Latest,
-  },
-  {
-    exact: false,
-    path: '/tz/:id/:collection?',
-    component: Display,
   },
   {
     exact: false,

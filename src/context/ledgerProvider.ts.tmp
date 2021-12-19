@@ -1,0 +1,74 @@
+import axios from "axios";
+import { BigNumber } from "bignumber.js";
+import LedgerLiveApi, { Account, TezosTransaction, FAMILIES } from "@ledgerhq/live-app-sdk";
+import { OriginateParams, TezosToolkit, TransferParams } from "@taquito/taquito";
+import { TezosProvider } from "./base"
+
+export async function ledgerProvider (api: LedgerLiveApi, account: Account) : Promise<TezosProvider> {
+  const tk = new TezosToolkit('https://hangzhounet.api.tez.ie');
+
+  const transfer = async (arg: TransferParams) => {
+    const tx: TezosTransaction = {
+      amount: new BigNumber("0"),
+      family: FAMILIES.TEZOS,
+      mode: "contract",
+      recipient: arg.to,
+      parameters: arg.parameter,
+      fees: new BigNumber("1")
+    }
+    const signedTx = await api?.signTransaction(account?.id, tx);
+
+    await api.broadcastSignedTransaction(account?.id, signedTx);
+  }
+  const originate = async (arg: OriginateParams) => {
+    console.log(arg);
+  }
+
+  const batch = async (args: TransferParams[]) => {
+    alert("PAS ENCORE IMPLEM LE BATCH DÉSO GROS");
+    console.error("Batch isn't implemented");
+
+    return null;
+  }
+
+  const sign = async (bytes: string, type?: "operation" | "message") => {
+    alert("PEUX PAS IMPLEM LE SIGN DÉSO GROS");
+    console.error("Sign isn't implemented");
+
+    return null;
+  }
+
+  const address = async () => {
+    return Promise.resolve(account?.address);
+  }
+
+  const public_key = async () => {
+    return axios.get(`https://api.tzstats.com/explorer/account/${account?.address}`).then(({ data }) => data.pubkey);
+  }
+
+  const storage = async(contract: string) => {
+  }
+
+  const balance = async () => {
+    return account.balance
+  }
+  
+  return {
+    // To change to Ledger
+    kind: "temple",
+    //@ts-ignore
+    transfer,
+    //@ts-ignore
+    originate,
+    //@ts-ignore
+    batch,
+    sign,
+    address,
+    public_key,
+    //@ts-ignore
+    storage,
+    balance,
+    chain_id:async () => tk.rpc.getChainId(),
+    tk,
+  }
+}

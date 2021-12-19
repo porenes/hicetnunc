@@ -5,14 +5,21 @@ import {
   BeaconWallet,
   BeaconWalletNotInitialized,
 } from '@taquito/beacon-wallet'
+import { TempleWallet } from '@temple-wallet/dapp'
+// import { TezBridgeWallet } from '@taquito/tezbridge-wallet'
 import { TezosToolkit, OpKind, MichelsonMap } from '@taquito/taquito'
-import { Parser, Expr } from "@taquito/michel-codec";
-import { Schema } from "@taquito/michelson-encoder";
+import { Parser, Expr } from '@taquito/michel-codec'
+import { Schema } from '@taquito/michelson-encoder'
 import { setItem } from '../utils/storage'
+import LedgerLiveApi from '@ledgerhq/live-app-sdk'
+import { WindowMessageTransport, Transaction } from '@ledgerhq/live-app-sdk'
 import { KeyStoreUtils } from 'conseiljs-softsigner'
-import { PermissionScope } from '@airgap/beacon-sdk'
+import {
+  PermissionScope,
+  TransactionInvalidBeaconError,
+} from '@airgap/beacon-sdk'
 import { UnitValue } from '@taquito/michelson-encoder'
-import { contentType } from 'mime-types';
+import { contentType } from 'mime-types'
 
 const { NetworkType } = require('@airgap/beacon-sdk')
 var ls = require('local-storage')
@@ -78,8 +85,11 @@ const wallet = new BeaconWallet({
 
 Tezos.setWalletProvider(wallet)
 
-class HicetnuncContextProviderClass extends Component {
+const llapi = new LedgerLiveApi(new WindowMessageTransport())
+llapi.connect()
+const account = llapi.requestAccount({ currencies: ['tezos'] })
 
+class HicetnuncContextProviderClass extends Component {
   constructor(props) {
     super(props)
 
@@ -95,8 +105,8 @@ class HicetnuncContextProviderClass extends Component {
       hDAO_curation: 'KT1TybhR7XraG75JFYKSrh7KnxukMBT5dor6',
       hDAO_marketplace: 'KT1QPvv7sWVaT9PcPiC4fN9BgfX8NB2d5WzL',
 
-      lastId : undefined,
-      setId : (id) => this.setState({ lastId : id }),
+      lastId: undefined,
+      setId: (id) => this.setState({ lastId: id }),
 
       subjktInfo: {},
       setSubjktInfo: (subjkt) => this.setState({ subjktInfo: subjkt }),
@@ -106,68 +116,108 @@ class HicetnuncContextProviderClass extends Component {
       cancel_hdao: undefined,
 
       collect_hdao: async (from, swap_id, token_address, token_id) => {
-
         let hDAO = await Tezos.wallet.at(this.state.hDAO)
         let marketplace = await Tezos.wallet.at(this.state.hDAO_marketplace)
 
         let list = [
           {
             kind: OpKind.TRANSACTION,
-            ...hDAO.methods.update_operators([{ add_operator: { operator: this.state.hDAO_marketplace, token_id: parseFloat(0), owner: from } }]).toTransferParams({ amount: 0, mutez: true, storageLimit: 150 })
+            ...hDAO.methods
+              .update_operators([
+                {
+                  add_operator: {
+                    operator: this.state.hDAO_marketplace,
+                    token_id: parseFloat(0),
+                    owner: from,
+                  },
+                },
+              ])
+              .toTransferParams({ amount: 0, mutez: true, storageLimit: 150 }),
           },
           {
             kind: OpKind.TRANSACTION,
-            ...marketplace.methods.collect(swap_id).toTransferParams({ amount: 0, mutez: true, storageLimit: 250 })
-          }
+            ...marketplace.methods
+              .collect(swap_id)
+              .toTransferParams({ amount: 0, mutez: true, storageLimit: 250 }),
+          },
         ]
 
-        let batch = await Tezos.wallet.batch(list);
+        let batch = await Tezos.wallet.batch(list)
         return await batch.send()
-
       },
 
-      swap_hDAO: async (from, royalties, token_per_objkt, objkt_id, creator, objkt_amount) => {
-
+      swap_hDAO: async (
+        from,
+        royalties,
+        token_per_objkt,
+        objkt_id,
+        creator,
+        objkt_amount
+      ) => {
         let objkts = await Tezos.wallet.at(this.state.objkts)
         let marketplace = await Tezos.wallet.at(this.state.hDAO_marketplace)
 
         let list = [
           {
             kind: OpKind.TRANSACTION,
-            ...objkts.methods.update_operators([{ add_operator: { operator: this.state.hDAO_marketplace, token_id: parseFloat(objkt_id), owner: from } }]).toTransferParams({ amount: 0, mutez: true, storageLimit: 175 })
+            ...objkts.methods
+              .update_operators([
+                {
+                  add_operator: {
+                    operator: this.state.hDAO_marketplace,
+                    token_id: parseFloat(objkt_id),
+                    owner: from,
+                  },
+                },
+              ])
+              .toTransferParams({ amount: 0, mutez: true, storageLimit: 175 }),
           },
           {
             kind: OpKind.TRANSACTION,
-            ...marketplace.methods.swap(this.state.hDAO_marketplace, creator, parseFloat(objkt_amount), parseFloat(objkt_id), parseFloat(royalties), parseFloat(0), parseFloat(token_per_objkt)).toTransferParams({ amount: 0, mutez: true, storageLimit: 300 })
-          }
+            ...marketplace.methods
+              .swap(
+                this.state.hDAO_marketplace,
+                creator,
+                parseFloat(objkt_amount),
+                parseFloat(objkt_id),
+                parseFloat(royalties),
+                parseFloat(0),
+                parseFloat(token_per_objkt)
+              )
+              .toTransferParams({ amount: 0, mutez: true, storageLimit: 300 }),
+          },
         ]
 
-        let batch = await Tezos.wallet.batch(list);
+        let batch = await Tezos.wallet.batch(list)
         return await batch.send()
-
       },
 
       // marketplace v2
 
       collectv2: async (swap_id, xtz_amount) => {
-        return await Tezos.wallet
-          .at(this.state.v2)
-          .then((c) =>
-            c.methods
-              .collect(parseFloat(swap_id))
-              .send({
-                amount: parseFloat(xtz_amount),
-                mutez: true,
-                storageLimit: 310,
-              })
-          )
+        // alert('toto')
+        // return await llapi.signTransaction((await account).id, {})
+        return await Tezos.wallet.at(this.state.v2).then((c) =>
+          c.methods.collect(parseFloat(swap_id)).send({
+            amount: parseFloat(xtz_amount),
+            mutez: true,
+            storageLimit: 310,
+          })
+        )
       },
 
-      swapv2: async (from, royalties, xtz_per_objkt, objkt_id, creator, objkt_amount) => {
+      swapv2: async (
+        from,
+        royalties,
+        xtz_per_objkt,
+        objkt_id,
+        creator,
+        objkt_amount
+      ) => {
         // If using proxy: both calls are made through this.state.proxyAddress:
-        const objktsAddress = this.state.proxyAddress || this.state.objkts;
-        const marketplaceAddress = this.state.proxyAddress || this.state.v2;
-        const ownerAddress = this.state.proxyAddress || from;
+        const objktsAddress = this.state.proxyAddress || this.state.objkts
+        const marketplaceAddress = this.state.proxyAddress || this.state.v2
+        const ownerAddress = this.state.proxyAddress || from
 
         let objkts = await Tezos.wallet.at(objktsAddress)
         let marketplace = await Tezos.wallet.at(marketplaceAddress)
@@ -175,16 +225,33 @@ class HicetnuncContextProviderClass extends Component {
         let list = [
           {
             kind: OpKind.TRANSACTION,
-            ...objkts.methods.update_operators([{ add_operator: { operator: this.state.v2, token_id: parseFloat(objkt_id), owner: ownerAddress } }])
-              .toTransferParams({ amount: 0, mutez: true, storageLimit: 175 })
+            ...objkts.methods
+              .update_operators([
+                {
+                  add_operator: {
+                    operator: this.state.v2,
+                    token_id: parseFloat(objkt_id),
+                    owner: ownerAddress,
+                  },
+                },
+              ])
+              .toTransferParams({ amount: 0, mutez: true, storageLimit: 175 }),
           },
           {
             kind: OpKind.TRANSACTION,
-            ...marketplace.methods.swap(creator, parseFloat(objkt_amount), parseFloat(objkt_id), parseFloat(royalties), parseFloat(xtz_per_objkt)).toTransferParams({ amount: 0, mutez: true, storageLimit: 300 })
-          }
+            ...marketplace.methods
+              .swap(
+                creator,
+                parseFloat(objkt_amount),
+                parseFloat(objkt_id),
+                parseFloat(royalties),
+                parseFloat(xtz_per_objkt)
+              )
+              .toTransferParams({ amount: 0, mutez: true, storageLimit: 300 }),
+          },
         ]
 
-        let batch = await Tezos.wallet.batch(list);
+        let batch = await Tezos.wallet.batch(list)
         return await batch.send()
       },
 
@@ -248,10 +315,10 @@ class HicetnuncContextProviderClass extends Component {
       setFeedback: (props) =>
         this.setState({ feedback: { ...this.state.feedback, ...props } }),
 
-      progress : undefined,
-      setProgress : (bool) => this.setState({ progress : bool }),
+      progress: undefined,
+      setProgress: (bool) => this.setState({ progress: bool }),
       message: undefined,
-      setMessage : (str) => this.setState({ message : str }),
+      setMessage: (str) => this.setState({ message: str }),
       // --------------------
       // feedback component end
       // --------------------
@@ -263,10 +330,10 @@ class HicetnuncContextProviderClass extends Component {
 
       contract: '',
 
-      setAddress: (address) => this.setState({ address: address }),
+      setAddress: (address) => this.setState({ address: account.address }),
 
       setAuth: (address) => {
-        ls.set('auth', address)
+        ls.set('auth', account.address)
       },
 
       updateLs: (key, value) => {
@@ -321,7 +388,7 @@ class HicetnuncContextProviderClass extends Component {
         this.setState({
           proxyAddress: proxyAddress,
           // objkt: proxyAddress || 'KT1Hkg5qeNhfwpKW4fXvq7HGZB9z2EnmCCA9'
-        });
+        })
       },
 
       // Do we need this? proxyAddress will push to UI via context
@@ -396,16 +463,28 @@ class HicetnuncContextProviderClass extends Component {
       },
 
       collect: async (swap_id, amount) => {
+        return await llapi.signTransaction(
+          (
+            await account
+          ).id,
+          {
+            amount: parseFloat(amount),
+            recipient: this.state.proxyAddress || this.state.v2,
+            family: 'tezos',
+            mode: 'send',
+          },
+          {
+            useApp: 'Tezos',
+          }
+        )
         return await Tezos.wallet
           .at(this.state.proxyAddress || this.state.v2)
           .then((c) =>
-            c.methods
-              .collect(parseFloat(swap_id))
-              .send({
-                amount: parseFloat(amount),
-                mutez: true,
-                storageLimit: 350,
-              })
+            c.methods.collect(parseFloat(swap_id)).send({
+              amount: parseFloat(amount),
+              mutez: true,
+              storageLimit: 350,
+            })
           )
           .catch((e) => e)
       },
@@ -427,37 +506,34 @@ class HicetnuncContextProviderClass extends Component {
 
       curate: async (objkt_id) => {
         await Tezos.wallet
-              .at(this.state.v1)
-              .then((c) =>
-                c.methods
-                  .curate(
-                    ls.get('hDAO_config') != null
-                      ? parseInt(ls.get('hDAO_config'))
-                      : 1,
-                    objkt_id
-                  )
-                  .send()
+          .at(this.state.v1)
+          .then((c) =>
+            c.methods
+              .curate(
+                ls.get('hDAO_config') != null
+                  ? parseInt(ls.get('hDAO_config'))
+                  : 1,
+                objkt_id
               )
+              .send()
+          )
       },
 
       claim_hDAO: async (hDAO_amount, objkt_id) => {
-        await Tezos.wallet
-          .at(this.state.hDAO_curation)
-          .then((c) => {
-            c.methods
-              .claim_hDAO(parseInt(hDAO_amount), parseInt(objkt_id))
-              .send()
-          })
+        await Tezos.wallet.at(this.state.hDAO_curation).then((c) => {
+          c.methods.claim_hDAO(parseInt(hDAO_amount), parseInt(objkt_id)).send()
+        })
       },
 
       batch_claim: async (arr) => {
         console.log(arr)
         let curation = await Tezos.wallet.at(this.state.hDAO_curation)
-        let transactions = arr.map(e => {
+        let transactions = arr.map((e) => {
           return {
             kind: OpKind.TRANSACTION,
-            ...curation.methods.claim_hDAO(e.hdao_balance, e.id)
-              .toTransferParams({ amount: 0, mutez: true, storageLimit: 175 })
+            ...curation.methods
+              .claim_hDAO(e.hdao_balance, e.id)
+              .toTransferParams({ amount: 0, mutez: true, storageLimit: 175 }),
           }
         })
         let batch = await Tezos.wallet.batch(transactions)
@@ -467,26 +543,24 @@ class HicetnuncContextProviderClass extends Component {
       burn: async (objkt_id, amount) => {
         var tz = await wallet.client.getActiveAccount()
 
-        await Tezos.wallet
-          .at(this.state.objkts)
-          .then(async (c) =>
-            c.methods
-              .transfer([
-                {
-                  from_: tz.address,
-                  txs: [
-                    {
-                      to_: 'tz1burnburnburnburnburnburnburjAYjjX',
-                      token_id: parseInt(objkt_id),
-                      amount: parseInt(amount),
-                    },
-                  ],
-                },
-              ])
-              .send()
-          )
+        await Tezos.wallet.at(this.state.objkts).then(async (c) =>
+          c.methods
+            .transfer([
+              {
+                from_: tz.address,
+                txs: [
+                  {
+                    to_: 'tz1burnburnburnburnburnburnburjAYjjX',
+                    token_id: parseInt(objkt_id),
+                    amount: parseInt(amount),
+                  },
+                ],
+              },
+            ])
+            .send()
+        )
 
-          this.state.setProgress(false)
+        this.state.setProgress(false)
       },
 
       cancelv1: async (swap_id) => {
@@ -534,7 +608,8 @@ class HicetnuncContextProviderClass extends Component {
 
       registry: async (alias, metadata) => {
         console.log(metadata)
-        const subjktAddressOrProxy = this.state.proxyAddress || this.state.subjkt
+        const subjktAddressOrProxy =
+          this.state.proxyAddress || this.state.subjkt
         return await Tezos.wallet.at(this.state.subjkt).then((c) =>
           c.methods
             .registry(
@@ -590,11 +665,8 @@ class HicetnuncContextProviderClass extends Component {
 
       setAccount: async () => {
         this.setState({
-          acc:
-            Tezos !== undefined
-              ? await wallet.client.getActiveAccount()
-              : undefined,
-          address: await wallet.client.getActiveAccount(),
+          acc: await account,
+          address: (await account).address,
         })
       },
 
@@ -685,11 +757,11 @@ class HicetnuncContextProviderClass extends Component {
 
       collapsed: true,
 
-      feed : [],
+      feed: [],
 
-      offset : 0,
+      offset: 0,
 
-      setFeed : (arr) => this.setState({ feed : arr }),
+      setFeed: (arr) => this.setState({ feed: arr }),
 
       toogleNavbar: () => {
         this.setState({ collapsed: !this.state.collapsed })
@@ -702,7 +774,7 @@ class HicetnuncContextProviderClass extends Component {
       getStyle: (style) =>
         style ? { background: 'white' } : { display: 'none' },
 
-      lastPath: '',
+      lastPath: '/tz/:id',
 
       setPath: (path) => {
         this.setState({
@@ -715,13 +787,12 @@ class HicetnuncContextProviderClass extends Component {
           title: title,
         })
       },
-      
+
       hDAO_vote: ls.get('hDAO_vote'),
 
       proxyFactoryAddress: 'KT1DoyD6kr8yLK8mRBFusyKYJUk2ZxNHKP1N',
 
       mockProxy: async () => {
-
         this.state.setFeedback({
           visible: true,
           message: 'creating collaborative contract',
@@ -735,7 +806,9 @@ class HicetnuncContextProviderClass extends Component {
           }
 
           axios
-            .get(`https://api.tzkt.io/v1/operations/originations/${result.opHash}`)
+            .get(
+              `https://api.tzkt.io/v1/operations/originations/${result.opHash}`
+            )
             .then(({ data }) => {
               const { originatedContract } = data[0]
 
@@ -761,11 +834,9 @@ class HicetnuncContextProviderClass extends Component {
               }, 2000)
             })
         }, 2000)
-
       },
 
       originateProxy: async (administratorAddress, participantData) => {
-      
         // Show progress during creation
         this.state.setFeedback({
           visible: true,
@@ -776,39 +847,37 @@ class HicetnuncContextProviderClass extends Component {
 
         // packing participants data:
         // (TODO: move to separate func)
-        const participantMap = MichelsonMap.fromLiteral(participantData);
+        const participantMap = MichelsonMap.fromLiteral(participantData)
 
-        const parser = new Parser();
-        const michelsonType = parser.parseData(createProxySchema);
-        const schema = new Schema(michelsonType);
-        const data = schema.Encode(participantMap);
+        const parser = new Parser()
+        const michelsonType = parser.parseData(createProxySchema)
+        const schema = new Schema(michelsonType)
+        const data = schema.Encode(participantMap)
 
         // Is it okay to make it blocking?:
         const { packed } = await Tezos.rpc.packData({
           data,
           type: michelsonType,
-        });
+        })
 
         // Blockchain ops
         await Tezos.wallet
           .at(this.state.proxyFactoryAddress)
-          .then(c =>
-            c.methods
-              .create_proxy(packed, 'hic_proxy')
-              .send({ amount: 0 })
+          .then((c) =>
+            c.methods.create_proxy(packed, 'hic_proxy').send({ amount: 0 })
           )
-          .then(result => {
-
+          .then((result) => {
             // TODO: this is a bit too nested for my liking
-            
+
             // Keep the operation hash for further queries if required (do we need this?)
             this.setState({ op: result.opHash })
 
             // Query tzkt.io to get the originated contract address
             axios
-              .get(`https://api.tzkt.io/v1/operations/originations/${result.opHash}`)
-              .then(response => {
-
+              .get(
+                `https://api.tzkt.io/v1/operations/originations/${result.opHash}`
+              )
+              .then((response) => {
                 // Send the originated contract to the UI via context
                 const { originatedContract } = response
                 this.setState({ originatedContract }) // save hash
@@ -828,7 +897,7 @@ class HicetnuncContextProviderClass extends Component {
                 }, 1000)
               })
           })
-          .catch(e => {
+          .catch((e) => {
             this.state.setFeedback({
               message: e.message || 'an error occurred',
               progress: false,
@@ -837,7 +906,7 @@ class HicetnuncContextProviderClass extends Component {
                 this.state.setFeedback({
                   visible: false,
                 })
-              }
+              },
             })
           })
       },
